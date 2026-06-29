@@ -1,1 +1,1 @@
-{"name":"ZaikoCam 売上・在庫管理","short_name":"ZaikoCam","start_url":"./","display":"standalone","background_color":"#f4f7fb","theme_color":"#1769ff","icons":[{"src":"icon.svg","sizes":"any","type":"image/svg+xml"}]}
+{"name":"在庫・売上管理","short_name":"在庫売上","start_url":"./","display":"standalone","background_color":"#eef7f5","theme_color":"#0f766e","icons":[{"src":"icon.svg","sizes":"any","type":"image/svg+xml"}]}

@@ -2,137 +2,114 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <title>ZaikoCam 売上・在庫管理</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f766e" />
+  <title>在庫・売上管理</title>
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="stylesheet" href="style.css" />
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 </head>
 <body>
   <header class="app-header">
     <div>
-      <p class="eyebrow">Barcode Stock & Sales</p>
-      <h1>ZaikoCam</h1>
+      <p class="eyebrow">Barcode Sales & Stock</p>
+      <h1>在庫・売上管理</h1>
     </div>
     <button id="installBtn" class="ghost hidden">アプリ追加</button>
   </header>
 
   <main>
     <section class="summary-grid">
-      <div class="card kpi"><span>今日の売上高</span><strong id="todayRevenue">¥0</strong></div>
-      <div class="card kpi"><span>今日の販売点数</span><strong id="todayQty">0</strong></div>
-      <div class="card kpi"><span>登録商品</span><strong id="productCount">0</strong></div>
-      <div class="card kpi"><span>在庫金額</span><strong id="stockValue">¥0</strong></div>
+      <div class="card total"><span>今日の売上高</span><strong id="todaySales">¥0</strong></div>
+      <div class="card"><span>今日の販売数</span><strong id="todayQty">0</strong></div>
+      <div class="card"><span>登録商品</span><strong id="productCount">0</strong></div>
+      <div class="card"><span>在庫合計</span><strong id="stockTotal">0</strong></div>
     </section>
 
-    <nav class="tabs" aria-label="メニュー">
+    <nav class="tabs" aria-label="機能切替">
       <button class="tab active" data-tab="sell">販売</button>
-      <button class="tab" data-tab="stock">棚卸</button>
       <button class="tab" data-tab="master">商品マスタ</button>
-      <button class="tab" data-tab="report">集計</button>
+      <button class="tab" data-tab="stocktake">月末棚卸</button>
+      <button class="tab" data-tab="export">出力</button>
     </nav>
 
     <section id="sell" class="panel active">
-      <div class="card">
-        <h2>販売登録</h2>
-        <div class="scanner-box">
-          <video id="sellVideo" playsinline muted></video>
-          <div class="scan-line"></div>
-        </div>
+      <div class="card scanner-card">
+        <h2>販売バーコード読取</h2>
+        <p class="hint">GitHub PagesのURL（https://〜）で開いてください。カメラ許可を求められたら「許可」を押してください。</p>
+        <div id="reader" class="reader hidden"></div>
         <div class="button-row">
-          <button id="startSellScan" class="primary">カメラで読取</button>
-          <button id="stopSellScan" class="ghost">停止</button>
+          <button id="startScan" class="primary">カメラ起動</button>
+          <button id="stopScan" class="danger hidden">停止</button>
         </div>
-        <label>バーコード番号
-          <input id="sellBarcode" inputmode="numeric" placeholder="手入力もできます" />
-        </label>
-        <div class="inline">
-          <label>販売数
-            <input id="sellQty" type="number" min="1" value="1" />
-          </label>
-          <button id="addSale" class="primary wide">売上に追加</button>
-        </div>
-        <p id="sellProductInfo" class="hint">バーコードを読むと商品名・価格が表示されます。</p>
+        <p id="scanStatus" class="status">待機中</p>
       </div>
+
+      <div class="card manual-sale">
+        <h2>手入力で販売登録</h2>
+        <label>バーコード</label>
+        <div class="input-row">
+          <input id="saleBarcode" inputmode="numeric" placeholder="バーコードを入力" />
+          <button id="addSaleOne" class="primary">1個販売</button>
+        </div>
+      </div>
+
       <div class="card">
         <h2>今日売れた商品</h2>
-        <div id="todaySalesList" class="list empty">まだ販売データがありません。</div>
-        <button id="clearToday" class="danger ghost">今日の販売データを削除</button>
-      </div>
-    </section>
-
-    <section id="stock" class="panel">
-      <div class="card">
-        <h2>月末棚卸</h2>
-        <div class="scanner-box">
-          <video id="stockVideo" playsinline muted></video>
-          <div class="scan-line"></div>
-        </div>
-        <div class="button-row">
-          <button id="startStockScan" class="primary">カメラで読取</button>
-          <button id="stopStockScan" class="ghost">停止</button>
-        </div>
-        <label>バーコード番号
-          <input id="stockBarcode" inputmode="numeric" placeholder="手入力もできます" />
-        </label>
-        <div class="inline">
-          <label>実在庫数
-            <input id="stockQty" type="number" min="0" value="0" />
-          </label>
-          <button id="saveStock" class="primary wide">在庫を更新</button>
-        </div>
-        <p id="stockProductInfo" class="hint">月末に数えた数を入れて更新してください。</p>
-      </div>
-      <div class="card">
-        <h2>在庫一覧</h2>
-        <div id="stockList" class="list empty">商品マスタを登録してください。</div>
+        <div id="todayList" class="list empty">まだ販売データがありません</div>
       </div>
     </section>
 
     <section id="master" class="panel">
       <div class="card">
-        <h2>商品マスタ登録</h2>
-        <label>バーコード
-          <input id="mBarcode" inputmode="numeric" placeholder="例：4901234567890" />
-        </label>
-        <label>商品名
-          <input id="mName" placeholder="例：ミネラルウォーター 500ml" />
-        </label>
-        <div class="inline">
-          <label>販売価格（税込）
-            <input id="mPrice" type="number" min="0" value="0" />
-          </label>
-          <label>初期在庫
-            <input id="mStock" type="number" min="0" value="0" />
-          </label>
+        <h2>商品登録・編集</h2>
+        <div class="form-grid">
+          <label>バーコード<input id="barcode" inputmode="numeric" placeholder="例: 4901234567890" /></label>
+          <label>商品名<input id="name" placeholder="例: お茶 500ml" /></label>
+          <label>販売価格<input id="price" type="number" min="0" placeholder="例: 150" /></label>
+          <label>現在庫<input id="stock" type="number" min="0" placeholder="例: 24" /></label>
         </div>
-        <button id="saveProduct" class="primary">商品を保存</button>
+        <div class="button-row">
+          <button id="saveProduct" class="primary">商品を保存</button>
+          <button id="clearForm" class="ghost">入力クリア</button>
+        </div>
       </div>
       <div class="card">
-        <h2>商品マスタ</h2>
-        <div id="productList" class="list empty">登録商品はありません。</div>
+        <h2>商品一覧</h2>
+        <div id="productList" class="list empty">商品がありません</div>
       </div>
     </section>
 
-    <section id="report" class="panel">
+    <section id="stocktake" class="panel">
       <div class="card">
-        <h2>集計・出力</h2>
-        <div class="button-row wrap">
-          <button id="exportSales" class="primary">売上CSV出力</button>
-          <button id="exportStock" class="primary">在庫CSV出力</button>
-          <button id="exportMaster" class="ghost">マスタCSV出力</button>
-          <button id="backupData" class="ghost">バックアップ出力</button>
-          <label class="fileBtn ghost">バックアップ読込<input id="restoreData" type="file" accept="application/json" hidden /></label>
+        <h2>月末棚卸</h2>
+        <p class="hint">実際に数えた数を入力して「棚卸反映」を押すと、現在庫を更新します。</p>
+        <div id="stocktakeList" class="list empty">商品がありません</div>
+      </div>
+    </section>
+
+    <section id="export" class="panel">
+      <div class="card">
+        <h2>CSV出力</h2>
+        <div class="button-column">
+          <button id="exportSales" class="primary">売上CSVを出力</button>
+          <button id="exportStock" class="primary">在庫CSVを出力</button>
+          <button id="exportMaster" class="primary">商品マスタCSVを出力</button>
         </div>
       </div>
       <div class="card">
-        <h2>商品別 売上ランキング</h2>
-        <div id="rankingList" class="list empty">まだ販売データがありません。</div>
+        <h2>バックアップ</h2>
+        <div class="button-column">
+          <button id="backupBtn" class="ghost">バックアップ保存</button>
+          <label class="file-label">バックアップ読込<input id="restoreFile" type="file" accept="application/json" /></label>
+          <button id="clearSalesToday" class="danger">今日の売上を削除</button>
+          <button id="clearAll" class="danger">全データ削除</button>
+        </div>
       </div>
     </section>
   </main>
 
-  <footer>データはこのスマホのブラウザ内に保存されます。端末変更前はバックアップしてください。</footer>
-  <script src="https://unpkg.com/@zxing/browser@latest/umd/index.min.js"></script>
+  <footer>データはこのスマホ内に保存されます。</footer>
   <script src="app.js"></script>
 </body>
 </html>
