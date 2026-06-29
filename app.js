@@ -1,124 +1,76 @@
-const DB_KEY = 'zaikoProDataV1';
-let data = JSON.parse(localStorage.getItem(DB_KEY) || '{"products":[],"history":[]}');
-let currentProduct = null;
-let stream = null;
-let detector = null;
-let scanning = false;
-
+const yen = n => new Intl.NumberFormat('ja-JP',{style:'currency',currency:'JPY',maximumFractionDigits:0}).format(Number(n||0));
+const todayKey = () => new Date().toISOString().slice(0,10);
 const $ = id => document.getElementById(id);
-const saveDB = () => localStorage.setItem(DB_KEY, JSON.stringify(data));
-const now = () => new Date().toLocaleString('ja-JP');
-const toast = msg => { const t=$('toast'); t.textContent=msg; t.style.display='block'; setTimeout(()=>t.style.display='none',2200); };
-
-function csvEscape(v){ return '"' + String(v ?? '').replaceAll('"','""') + '"'; }
-function downloadCSV(filename, rows){
-  const csv = rows.map(r=>r.map(csvEscape).join(',')).join('\n');
-  const blob = new Blob(['\ufeff' + csv], {type:'text/csv;charset=utf-8;'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob); a.download = filename; a.click(); URL.revokeObjectURL(a.href);
-}
-function exportStock(){
-  downloadCSV('zaiko_stock.csv', [['バーコード','商品名','SKU','在庫数','保管場所'], ...data.products.map(p=>[p.barcode,p.name,p.sku,p.stock,p.location])]);
-}
-function exportHistory(){
-  downloadCSV('zaiko_history.csv', [['日時','処理','バーコード','商品名','数量','処理前','処理後','メモ'], ...data.history.map(h=>[h.date,h.action,h.barcode,h.name,h.qty,h.before,h.after,h.memo])]);
-}
-function exportAll(){ exportStock(); setTimeout(exportHistory, 400); }
-
-function setView(id){
-  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
-  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-  $(id).classList.add('active'); document.querySelector(`[data-view="${id}"]`).classList.add('active');
-  render();
-}
-
-document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>setView(b.dataset.view));
-
-function findProduct(barcode){ return data.products.find(p => p.barcode === String(barcode).trim()); }
-function selectProduct(barcode){
-  const bc = String(barcode).trim();
-  $('barcodeInput').value = bc;
-  const p = findProduct(bc);
-  if(!p){
-    currentProduct = null;
-    $('currentName').textContent = '未登録の商品';
-    $('currentMeta').textContent = `バーコード：${bc}。商品マスタで登録してください。`;
-    $('currentStock').textContent = '-';
-    $('masterBarcode').value = bc;
-    toast('未登録です。商品マスタにバーコードを入れました');
-    return;
-  }
-  currentProduct = p;
-  $('currentName').textContent = p.name;
-  $('currentMeta').textContent = `バーコード：${p.barcode} / SKU：${p.sku || '-'} / 場所：${p.location || '-'}`;
-  $('currentStock').textContent = p.stock;
-  toast('商品を読み取りました');
-}
-
-function saveStock(){
-  if(!currentProduct){ toast('先に商品を選択してください'); return; }
-  const qty = Number($('qtyInput').value);
-  if(!Number.isFinite(qty) || qty < 0){ toast('数量を入力してください'); return; }
-  const action = $('actionType').value;
-  const before = Number(currentProduct.stock || 0);
-  let after = before;
-  if(action === 'count') after = qty;
-  if(action === 'in') after = before + qty;
-  if(action === 'out') after = Math.max(0, before - qty);
-  if(action === 'adjust') after = before + qty;
-  currentProduct.stock = after;
-  data.history.unshift({date:now(), action, barcode:currentProduct.barcode, name:currentProduct.name, qty, before, after, memo:$('memoInput').value});
-  saveDB(); $('qtyInput').value=''; $('memoInput').value=''; selectProduct(currentProduct.barcode); render(); toast('在庫を保存しました');
-}
-
-function saveMaster(){
-  const barcode = $('masterBarcode').value.trim();
-  const name = $('masterName').value.trim();
-  if(!barcode || !name){ toast('バーコードと商品名は必須です'); return; }
-  let p = findProduct(barcode);
-  if(!p){ p = {barcode, name, sku:'', stock:0, location:''}; data.products.push(p); }
-  p.name = name; p.sku = $('masterSku').value.trim(); p.stock = Number($('masterStock').value || p.stock || 0); p.location = $('masterLocation').value.trim();
-  saveDB(); render(); toast('商品マスタを保存しました');
-}
-
-function render(){
-  $('productsTable').innerHTML = '<tr><th>バーコード</th><th>商品名</th><th>SKU</th><th>在庫</th><th>場所</th></tr>' + data.products.map(p=>`<tr><td>${p.barcode}</td><td>${p.name}</td><td>${p.sku||''}</td><td>${p.stock}</td><td>${p.location||''}</td></tr>`).join('');
-  const q = $('stockSearch')?.value?.toLowerCase() || '';
-  const ps = data.products.filter(p => [p.barcode,p.name,p.sku,p.location].join(' ').toLowerCase().includes(q));
-  $('stockTable').innerHTML = '<tr><th>バーコード</th><th>商品名</th><th>在庫</th><th>場所</th></tr>' + ps.map(p=>`<tr><td>${p.barcode}</td><td>${p.name}</td><td><b>${p.stock}</b></td><td>${p.location||''}</td></tr>`).join('');
-  $('historyTable').innerHTML = '<tr><th>日時</th><th>処理</th><th>商品名</th><th>数量</th><th>前</th><th>後</th><th>メモ</th></tr>' + data.history.map(h=>`<tr><td>${h.date}</td><td>${h.action}</td><td>${h.name}</td><td>${h.qty}</td><td>${h.before}</td><td>${h.after}</td><td>${h.memo||''}</td></tr>`).join('');
-}
-
-async function startScan(){
-  if(!('BarcodeDetector' in window)){ toast('このブラウザは自動読取非対応です。手入力を使ってください'); return; }
-  detector = new BarcodeDetector({formats:['ean_13','ean_8','code_128','qr_code','upc_a','upc_e']});
-  stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
-  $('video').srcObject = stream; await $('video').play(); scanning = true; $('cameraStatus').textContent='カメラ読取中'; loopScan();
-}
-async function loopScan(){
-  if(!scanning) return;
+const LS = 'zaikocam_sales_v1';
+let state = JSON.parse(localStorage.getItem(LS) || '{"products":{},"sales":[]}');
+let codeReader = null;
+let currentScan = null;
+function save(){ localStorage.setItem(LS, JSON.stringify(state)); render(); }
+function product(code){ return state.products[String(code || '').trim()]; }
+function stopScan(){ if(currentScan){ currentScan.stop(); currentScan=null; } document.querySelectorAll('video').forEach(v=>v.srcObject=null); }
+async function startScan(videoId, inputId){
+  stopScan();
   try{
-    const codes = await detector.detect($('video'));
-    if(codes.length){ selectProduct(codes[0].rawValue); stopScan(); }
-  }catch(e){}
-  requestAnimationFrame(loopScan);
+    if(!window.ZXingBrowser) throw new Error('読取ライブラリを読み込めませんでした');
+    codeReader = codeReader || new ZXingBrowser.BrowserMultiFormatReader();
+    currentScan = await codeReader.decodeFromVideoDevice(undefined, videoId, (result, err, controls)=>{
+      if(result){ $(inputId).value = result.getText(); vibrate(); updateInfo(); }
+    });
+  }catch(e){ alert('カメラを起動できませんでした。HTTPSのURLで開いているか、カメラ許可を確認してください。'); }
 }
-function stopScan(){ scanning=false; if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; } $('cameraStatus').textContent='カメラ停止'; }
-
-function addSamples(){
-  const samples=[['4901111111111','コピー用紙 A4','PAPER-A4',12,'倉庫A-1'],['4902222222222','ボールペン 黒','PEN-BK',35,'事務所'],['4903333333333','梱包テープ','TAPE-01',8,'倉庫B-2']];
-  samples.forEach(([barcode,name,sku,stock,location])=>{ if(!findProduct(barcode)) data.products.push({barcode,name,sku,stock,location}); });
-  saveDB(); render(); toast('サンプルを追加しました');
+function vibrate(){ if(navigator.vibrate) navigator.vibrate(80); }
+function addSale(){
+  const code = $('sellBarcode').value.trim(); const p = product(code); const qty = Math.max(1, Number($('sellQty').value||1));
+  if(!code) return alert('バーコードを入力してください');
+  if(!p) return alert('商品マスタに登録されていません。先に商品マスタへ登録してください。');
+  state.sales.push({date:todayKey(), barcode:code, name:p.name, price:Number(p.price||0), qty, amount:Number(p.price||0)*qty, time:new Date().toLocaleTimeString('ja-JP')});
+  p.stock = Math.max(0, Number(p.stock||0)-qty); $('sellQty').value = 1; save();
 }
-
-$('findProductBtn').onclick = () => selectProduct($('barcodeInput').value);
-$('saveStockBtn').onclick = saveStock;
-$('saveMasterBtn').onclick = saveMaster;
-$('startScanBtn').onclick = startScan;
-$('stopScanBtn').onclick = stopScan;
-$('exportStockBtn').onclick = exportStock;
-$('exportHistoryBtn').onclick = exportHistory;
-$('exportAllBtn').onclick = exportAll;
-$('sampleBtn').onclick = addSamples;
-$('stockSearch').oninput = render;
+function saveStock(){
+  const code = $('stockBarcode').value.trim(); const p = product(code); const qty = Math.max(0, Number($('stockQty').value||0));
+  if(!code) return alert('バーコードを入力してください');
+  if(!p) return alert('商品マスタに登録されていません。先に商品マスタへ登録してください。');
+  p.stock = qty; p.lastStocktake = new Date().toLocaleString('ja-JP'); save();
+}
+function saveProduct(){
+  const code=$('mBarcode').value.trim(), name=$('mName').value.trim();
+  if(!code || !name) return alert('バーコードと商品名を入力してください');
+  state.products[code] = {barcode:code, name, price:Number($('mPrice').value||0), stock:Number($('mStock').value||0), updatedAt:new Date().toLocaleString('ja-JP')};
+  ['mBarcode','mName'].forEach(id=>$(id).value=''); $('mPrice').value=0; $('mStock').value=0; save();
+}
+function updateInfo(){
+  const s = product($('sellBarcode').value); $('sellProductInfo').textContent = s ? `${s.name} / ${yen(s.price)} / 現在庫 ${s.stock}` : '未登録の商品です。商品マスタに登録してください。';
+  const t = product($('stockBarcode').value); $('stockProductInfo').textContent = t ? `${t.name} / 現在庫 ${t.stock} / 価格 ${yen(t.price)}` : '未登録の商品です。商品マスタに登録してください。';
+}
+function render(){
+  const products = Object.values(state.products); const todays = state.sales.filter(s=>s.date===todayKey());
+  $('todayRevenue').textContent = yen(todays.reduce((a,s)=>a+s.amount,0));
+  $('todayQty').textContent = todays.reduce((a,s)=>a+s.qty,0);
+  $('productCount').textContent = products.length;
+  $('stockValue').textContent = yen(products.reduce((a,p)=>a+(Number(p.price||0)*Number(p.stock||0)),0));
+  $('productList').innerHTML = products.length ? products.map(p=>`<div class="item"><div><b>${esc(p.name)}</b><small>${p.barcode}<br>価格 ${yen(p.price)} / 在庫 ${p.stock}</small><div class="mini-actions"><button onclick="editProduct('${p.barcode}')">編集</button><button class="danger" onclick="deleteProduct('${p.barcode}')">削除</button></div></div><div class="amount">${yen(p.price)}</div></div>`).join('') : '登録商品はありません。';
+  $('stockList').innerHTML = products.length ? products.map(p=>`<div class="item"><div><b>${esc(p.name)}</b><small>${p.barcode}<br>最終棚卸 ${p.lastStocktake||'-'}</small></div><div class="amount">${p.stock}個<br><small>${yen(Number(p.price||0)*Number(p.stock||0))}</small></div></div>`).join('') : '商品マスタを登録してください。';
+  const byToday = group(todays); $('todaySalesList').innerHTML = byToday.length ? byToday.map(r=>`<div class="item"><div><b>${esc(r.name)}</b><small>${r.barcode}<br>${yen(r.price)} × ${r.qty}個</small></div><div class="amount">${yen(r.amount)}</div></div>`).join('') : 'まだ販売データがありません。';
+  const byAll = group(state.sales).sort((a,b)=>b.amount-a.amount); $('rankingList').innerHTML = byAll.length ? byAll.map((r,i)=>`<div class="item"><div><b>${i+1}. ${esc(r.name)}</b><small>${r.barcode}<br>${r.qty}個販売</small></div><div class="amount">${yen(r.amount)}</div></div>`).join('') : 'まだ販売データがありません。';
+  updateInfo();
+}
+function group(rows){ const m={}; rows.forEach(s=>{m[s.barcode]??={barcode:s.barcode,name:s.name,price:s.price,qty:0,amount:0}; m[s.barcode].qty+=s.qty; m[s.barcode].amount+=s.amount;}); return Object.values(m); }
+function editProduct(code){ const p=product(code); if(!p)return; $('mBarcode').value=p.barcode; $('mName').value=p.name; $('mPrice').value=p.price; $('mStock').value=p.stock; showTab('master'); }
+function deleteProduct(code){ if(confirm('この商品を削除しますか？')){ delete state.products[code]; save(); } }
+function clearToday(){ if(confirm('今日の販売データを削除しますか？在庫数は戻りません。')){ state.sales = state.sales.filter(s=>s.date!==todayKey()); save(); } }
+function esc(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function csv(name, rows){ if(!rows.length) return alert('出力するデータがありません'); const keys=Object.keys(rows[0]); const body=[keys.join(','),...rows.map(r=>keys.map(k=>`"${String(r[k]??'').replace(/"/g,'""')}"`).join(','))].join('\n'); download(name, '\ufeff'+body, 'text/csv'); }
+function download(name, text, type){ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([text],{type})); a.download=name; a.click(); URL.revokeObjectURL(a.href); }
+function showTab(id){ document.querySelectorAll('.tab,.panel').forEach(el=>el.classList.remove('active')); document.querySelector(`.tab[data-tab="${id}"]`).classList.add('active'); $(id).classList.add('active'); stopScan(); }
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
+$('startSellScan').onclick=()=>startScan('sellVideo','sellBarcode'); $('stopSellScan').onclick=stopScan; $('startStockScan').onclick=()=>startScan('stockVideo','stockBarcode'); $('stopStockScan').onclick=stopScan;
+$('addSale').onclick=addSale; $('saveStock').onclick=saveStock; $('saveProduct').onclick=saveProduct; $('clearToday').onclick=clearToday;
+['sellBarcode','stockBarcode'].forEach(id=>$(id).addEventListener('input', updateInfo));
+$('exportSales').onclick=()=>csv(`sales_${todayKey()}.csv`, state.sales);
+$('exportStock').onclick=()=>csv(`stock_${todayKey()}.csv`, Object.values(state.products).map(p=>({barcode:p.barcode,name:p.name,price:p.price,stock:p.stock,stock_value:p.price*p.stock,last_stocktake:p.lastStocktake||''})));
+$('exportMaster').onclick=()=>csv(`master_${todayKey()}.csv`, Object.values(state.products));
+$('backupData').onclick=()=>download(`zaikocam_backup_${todayKey()}.json`, JSON.stringify(state,null,2), 'application/json');
+$('restoreData').onchange=e=>{ const f=e.target.files[0]; if(!f)return; const r=new FileReader(); r.onload=()=>{try{state=JSON.parse(r.result); save(); alert('読み込みました');}catch{alert('読み込めませんでした');}}; r.readAsText(f); };
+let deferredPrompt; window.addEventListener('beforeinstallprompt', e=>{e.preventDefault(); deferredPrompt=e; $('installBtn').classList.remove('hidden');}); $('installBtn').onclick=()=>deferredPrompt?.prompt();
+if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
 render();

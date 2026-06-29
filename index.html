@@ -2,122 +2,137 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>スマホ在庫管理 Pro</title>
-  <link rel="stylesheet" href="styles.css" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>ZaikoCam 売上・在庫管理</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <header class="app-header">
     <div>
-      <p class="eyebrow">Inventory Control</p>
-      <h1>スマホ在庫管理 Pro</h1>
+      <p class="eyebrow">Barcode Stock & Sales</p>
+      <h1>ZaikoCam</h1>
     </div>
-    <button id="exportAllBtn" class="ghost">Excel出力</button>
+    <button id="installBtn" class="ghost hidden">アプリ追加</button>
   </header>
 
   <main>
-    <section class="card hero">
-      <div>
-        <h2>バーコード読取 → 数量入力 → 履歴保存</h2>
-        <p>スマホカメラで読取り、商品マスタと在庫数を管理します。データはこの端末内に保存されます。</p>
-      </div>
-      <div class="status-pill" id="cameraStatus">カメラ未起動</div>
+    <section class="summary-grid">
+      <div class="card kpi"><span>今日の売上高</span><strong id="todayRevenue">¥0</strong></div>
+      <div class="card kpi"><span>今日の販売点数</span><strong id="todayQty">0</strong></div>
+      <div class="card kpi"><span>登録商品</span><strong id="productCount">0</strong></div>
+      <div class="card kpi"><span>在庫金額</span><strong id="stockValue">¥0</strong></div>
     </section>
 
-    <nav class="tabs" aria-label="画面切替">
-      <button class="tab active" data-view="scanView">読取</button>
-      <button class="tab" data-view="masterView">商品マスタ</button>
-      <button class="tab" data-view="stockView">在庫一覧</button>
-      <button class="tab" data-view="historyView">履歴</button>
+    <nav class="tabs" aria-label="メニュー">
+      <button class="tab active" data-tab="sell">販売</button>
+      <button class="tab" data-tab="stock">棚卸</button>
+      <button class="tab" data-tab="master">商品マスタ</button>
+      <button class="tab" data-tab="report">集計</button>
     </nav>
 
-    <section id="scanView" class="view active">
+    <section id="sell" class="panel active">
       <div class="card">
-        <div class="scan-box">
-          <video id="video" playsinline></video>
+        <h2>販売登録</h2>
+        <div class="scanner-box">
+          <video id="sellVideo" playsinline muted></video>
           <div class="scan-line"></div>
         </div>
-        <div class="row gap">
-          <button id="startScanBtn">カメラ読取開始</button>
-          <button id="stopScanBtn" class="secondary">停止</button>
+        <div class="button-row">
+          <button id="startSellScan" class="primary">カメラで読取</button>
+          <button id="stopSellScan" class="ghost">停止</button>
         </div>
-        <label>バーコード番号を手入力</label>
-        <div class="row">
-          <input id="barcodeInput" inputmode="numeric" placeholder="例：4901234567890" />
-          <button id="findProductBtn">検索</button>
-        </div>
-      </div>
-
-      <div class="card" id="currentProductCard">
-        <p class="eyebrow">選択中の商品</p>
-        <h3 id="currentName">未選択</h3>
-        <p id="currentMeta">バーコードを読んでください</p>
-        <div class="stock-number"><span id="currentStock">-</span><small>現在庫</small></div>
-        <div class="grid2">
-          <label>処理
-            <select id="actionType">
-              <option value="count">棚卸確定</option>
-              <option value="in">入庫</option>
-              <option value="out">出庫</option>
-              <option value="adjust">調整</option>
-            </select>
-          </label>
-          <label>数量
-            <input id="qtyInput" type="number" min="0" step="1" placeholder="数量" />
-          </label>
-        </div>
-        <label>担当者・メモ
-          <input id="memoInput" placeholder="例：山田 / A棚確認" />
+        <label>バーコード番号
+          <input id="sellBarcode" inputmode="numeric" placeholder="手入力もできます" />
         </label>
-        <button id="saveStockBtn" class="primary">在庫を保存</button>
+        <div class="inline">
+          <label>販売数
+            <input id="sellQty" type="number" min="1" value="1" />
+          </label>
+          <button id="addSale" class="primary wide">売上に追加</button>
+        </div>
+        <p id="sellProductInfo" class="hint">バーコードを読むと商品名・価格が表示されます。</p>
+      </div>
+      <div class="card">
+        <h2>今日売れた商品</h2>
+        <div id="todaySalesList" class="list empty">まだ販売データがありません。</div>
+        <button id="clearToday" class="danger ghost">今日の販売データを削除</button>
       </div>
     </section>
 
-    <section id="masterView" class="view">
+    <section id="stock" class="panel">
+      <div class="card">
+        <h2>月末棚卸</h2>
+        <div class="scanner-box">
+          <video id="stockVideo" playsinline muted></video>
+          <div class="scan-line"></div>
+        </div>
+        <div class="button-row">
+          <button id="startStockScan" class="primary">カメラで読取</button>
+          <button id="stopStockScan" class="ghost">停止</button>
+        </div>
+        <label>バーコード番号
+          <input id="stockBarcode" inputmode="numeric" placeholder="手入力もできます" />
+        </label>
+        <div class="inline">
+          <label>実在庫数
+            <input id="stockQty" type="number" min="0" value="0" />
+          </label>
+          <button id="saveStock" class="primary wide">在庫を更新</button>
+        </div>
+        <p id="stockProductInfo" class="hint">月末に数えた数を入れて更新してください。</p>
+      </div>
+      <div class="card">
+        <h2>在庫一覧</h2>
+        <div id="stockList" class="list empty">商品マスタを登録してください。</div>
+      </div>
+    </section>
+
+    <section id="master" class="panel">
       <div class="card">
         <h2>商品マスタ登録</h2>
         <label>バーコード
-          <input id="masterBarcode" inputmode="numeric" />
+          <input id="mBarcode" inputmode="numeric" placeholder="例：4901234567890" />
         </label>
         <label>商品名
-          <input id="masterName" />
+          <input id="mName" placeholder="例：ミネラルウォーター 500ml" />
         </label>
-        <div class="grid2">
-          <label>品番/SKU
-            <input id="masterSku" />
+        <div class="inline">
+          <label>販売価格（税込）
+            <input id="mPrice" type="number" min="0" value="0" />
           </label>
           <label>初期在庫
-            <input id="masterStock" type="number" min="0" step="1" value="0" />
+            <input id="mStock" type="number" min="0" value="0" />
           </label>
         </div>
-        <label>保管場所
-          <input id="masterLocation" placeholder="例：倉庫A-3" />
-        </label>
-        <button id="saveMasterBtn" class="primary">商品を登録・更新</button>
+        <button id="saveProduct" class="primary">商品を保存</button>
       </div>
       <div class="card">
-        <div class="row between"><h2>商品一覧</h2><button id="sampleBtn" class="secondary">サンプル追加</button></div>
-        <div class="table-wrap"><table id="productsTable"></table></div>
+        <h2>商品マスタ</h2>
+        <div id="productList" class="list empty">登録商品はありません。</div>
       </div>
     </section>
 
-    <section id="stockView" class="view">
+    <section id="report" class="panel">
       <div class="card">
-        <div class="row between"><h2>在庫一覧</h2><button id="exportStockBtn" class="secondary">在庫CSV</button></div>
-        <input id="stockSearch" placeholder="商品名・バーコード・保管場所で検索" />
-        <div class="table-wrap"><table id="stockTable"></table></div>
+        <h2>集計・出力</h2>
+        <div class="button-row wrap">
+          <button id="exportSales" class="primary">売上CSV出力</button>
+          <button id="exportStock" class="primary">在庫CSV出力</button>
+          <button id="exportMaster" class="ghost">マスタCSV出力</button>
+          <button id="backupData" class="ghost">バックアップ出力</button>
+          <label class="fileBtn ghost">バックアップ読込<input id="restoreData" type="file" accept="application/json" hidden /></label>
+        </div>
       </div>
-    </section>
-
-    <section id="historyView" class="view">
       <div class="card">
-        <div class="row between"><h2>入出庫・棚卸履歴</h2><button id="exportHistoryBtn" class="secondary">履歴CSV</button></div>
-        <div class="table-wrap"><table id="historyTable"></table></div>
+        <h2>商品別 売上ランキング</h2>
+        <div id="rankingList" class="list empty">まだ販売データがありません。</div>
       </div>
     </section>
   </main>
 
-  <div id="toast" role="status"></div>
+  <footer>データはこのスマホのブラウザ内に保存されます。端末変更前はバックアップしてください。</footer>
+  <script src="https://unpkg.com/@zxing/browser@latest/umd/index.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
