@@ -63,8 +63,17 @@
     <section id="master" class="panel">
       <div class="card">
         <h2>商品登録・編集</h2>
+        <div class="master-scan-box">
+          <p class="hint">商品登録でもカメラでJANコードを読み取れます。読み取ったJANがバーコード欄に入ります。</p>
+          <div id="masterReader" class="reader hidden"></div>
+          <div class="button-row">
+            <button id="startMasterScan" class="primary">JANをカメラで読取</button>
+            <button id="stopMasterScan" class="danger hidden">停止</button>
+          </div>
+          <p id="masterScanStatus" class="status">商品マスタ読取：待機中</p>
+        </div>
         <div class="form-grid">
-          <label>バーコード<input id="barcode" inputmode="numeric" placeholder="例: 4901234567890" /></label>
+          <label>バーコード / JAN<input id="barcode" inputmode="numeric" placeholder="例: 4901234567890" /></label>
           <label>商品名<input id="name" placeholder="例: お茶 500ml" /></label>
           <label>販売価格<input id="price" type="number" min="0" placeholder="例: 150" /></label>
           <label>現在庫<input id="stock" type="number" min="0" placeholder="例: 24" /></label>
