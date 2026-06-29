@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>スマホ在庫管理 Pro</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="app-header">
+    <div>
+      <p class="eyebrow">Inventory Control</p>
+      <h1>スマホ在庫管理 Pro</h1>
+    </div>
+    <button id="exportAllBtn" class="ghost">Excel出力</button>
+  </header>
+
+  <main>
+    <section class="card hero">
+      <div>
+        <h2>バーコード読取 → 数量入力 → 履歴保存</h2>
+        <p>スマホカメラで読取り、商品マスタと在庫数を管理します。データはこの端末内に保存されます。</p>
+      </div>
+      <div class="status-pill" id="cameraStatus">カメラ未起動</div>
+    </section>
+
+    <nav class="tabs" aria-label="画面切替">
+      <button class="tab active" data-view="scanView">読取</button>
+      <button class="tab" data-view="masterView">商品マスタ</button>
+      <button class="tab" data-view="stockView">在庫一覧</button>
+      <button class="tab" data-view="historyView">履歴</button>
+    </nav>
+
+    <section id="scanView" class="view active">
+      <div class="card">
+        <div class="scan-box">
+          <video id="video" playsinline></video>
+          <div class="scan-line"></div>
+        </div>
+        <div class="row gap">
+          <button id="startScanBtn">カメラ読取開始</button>
+          <button id="stopScanBtn" class="secondary">停止</button>
+        </div>
+        <label>バーコード番号を手入力</label>
+        <div class="row">
+          <input id="barcodeInput" inputmode="numeric" placeholder="例：4901234567890" />
+          <button id="findProductBtn">検索</button>
+        </div>
+      </div>
+
+      <div class="card" id="currentProductCard">
+        <p class="eyebrow">選択中の商品</p>
+        <h3 id="currentName">未選択</h3>
+        <p id="currentMeta">バーコードを読んでください</p>
+        <div class="stock-number"><span id="currentStock">-</span><small>現在庫</small></div>
+        <div class="grid2">
+          <label>処理
+            <select id="actionType">
+              <option value="count">棚卸確定</option>
+              <option value="in">入庫</option>
+              <option value="out">出庫</option>
+              <option value="adjust">調整</option>
+            </select>
+          </label>
+          <label>数量
+            <input id="qtyInput" type="number" min="0" step="1" placeholder="数量" />
+          </label>
+        </div>
+        <label>担当者・メモ
+          <input id="memoInput" placeholder="例：山田 / A棚確認" />
+        </label>
+        <button id="saveStockBtn" class="primary">在庫を保存</button>
+      </div>
+    </section>
+
+    <section id="masterView" class="view">
+      <div class="card">
+        <h2>商品マスタ登録</h2>
+        <label>バーコード
+          <input id="masterBarcode" inputmode="numeric" />
+        </label>
+        <label>商品名
+          <input id="masterName" />
+        </label>
+        <div class="grid2">
+          <label>品番/SKU
+            <input id="masterSku" />
+          </label>
+          <label>初期在庫
+            <input id="masterStock" type="number" min="0" step="1" value="0" />
+          </label>
+        </div>
+        <label>保管場所
+          <input id="masterLocation" placeholder="例：倉庫A-3" />
+        </label>
+        <button id="saveMasterBtn" class="primary">商品を登録・更新</button>
+      </div>
+      <div class="card">
+        <div class="row between"><h2>商品一覧</h2><button id="sampleBtn" class="secondary">サンプル追加</button></div>
+        <div class="table-wrap"><table id="productsTable"></table></div>
+      </div>
+    </section>
+
+    <section id="stockView" class="view">
+      <div class="card">
+        <div class="row between"><h2>在庫一覧</h2><button id="exportStockBtn" class="secondary">在庫CSV</button></div>
+        <input id="stockSearch" placeholder="商品名・バーコード・保管場所で検索" />
+        <div class="table-wrap"><table id="stockTable"></table></div>
+      </div>
+    </section>
+
+    <section id="historyView" class="view">
+      <div class="card">
+        <div class="row between"><h2>入出庫・棚卸履歴</h2><button id="exportHistoryBtn" class="secondary">履歴CSV</button></div>
+        <div class="table-wrap"><table id="historyTable"></table></div>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" role="status"></div>
+  <script src="app.js"></script>
+</body>
+</html>
