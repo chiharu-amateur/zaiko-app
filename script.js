@@ -61,17 +61,18 @@ const questions = [
   }
 ];
 
-// ここにApps Scriptの「ウェブアプリURL」を貼り付けてください。
-// 例: const SUBMIT_URL = "https://script.google.com/macros/s/xxxxx/exec";
-const SUBMIT_URL = "ここにGoogle Apps ScriptのウェブアプリURLを貼る";
-const STORAGE_KEY = "jikaseizai_quiz_results_backup";
-
 let current = 0;
 let score = 0;
 let answered = false;
+
+// Googleスプレッドシート等へ送信したい場合は、Apps ScriptのWebアプリURLをここに入れてください。
+// 空欄のままなら、この端末のブラウザ内に保存され、CSV出力で回収できます。
+const SUBMIT_URL = "";
+const STORAGE_KEY = "jikaseizai_quiz_results";
 let userName = "";
 let startedAt = "";
 let answersLog = [];
+
 
 const $ = (id) => document.getElementById(id);
 const startScreen = $("startScreen");
@@ -134,7 +135,7 @@ function checkAnswer(btn) {
     question: q.text,
     selected: selected ? "算定できる" : "算定できない",
     correctAnswer: q.answer ? "算定できる" : "算定できない",
-    isCorrect: isCorrect ? "正解" : "不正解"
+    isCorrect
   });
 
   buttons.forEach(b => {
@@ -173,7 +174,8 @@ function finishQuiz() {
       : "基本ルールからもう一度確認すると伸びます。まずは“医師の指示”と“既製剤の有無”を押さえましょう。";
 }
 
-async function saveSurvey(difficulty) {
+
+function saveSurvey(difficulty) {
   document.querySelectorAll(".difficulty").forEach(btn => {
     btn.classList.toggle("selected", btn.dataset.difficulty === difficulty);
   });
@@ -189,59 +191,38 @@ async function saveSurvey(difficulty) {
     answers: answersLog
   };
 
-  saveLocalBackup(record);
-  $("savedMessage").textContent = "送信中です…";
-  $("savedMessage").classList.remove("hidden");
-
-  if (!SUBMIT_URL || SUBMIT_URL.includes("ここに")) {
-    $("savedMessage").textContent = "ウェブアプリURLが未設定です。端末内バックアップのみ保存しました。";
-    return;
-  }
-
-  try {
-    await fetch(SUBMIT_URL, {
-      method: "POST",
-      mode: "no-cors",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify(record)
-    });
-    $("savedMessage").textContent = "回答をGoogleスプレッドシートへ送信しました。";
-    $("surveyBox").classList.add("hidden");
-  } catch (error) {
-    console.error(error);
-    $("savedMessage").textContent = "送信に失敗しました。端末内バックアップは保存されています。";
-  }
-}
-
-function saveLocalBackup(record) {
   const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
   saved.push(record);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
+  $("savedMessage").classList.remove("hidden");
+  $("surveyBox").classList.add("hidden");
+
+  if (SUBMIT_URL) {
+    fetch(SUBMIT_URL, {
+      method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(record)
+    }).catch(() => {
+      console.log("オンライン送信に失敗しました。ローカル保存は完了しています。")
+    });
+  }
 }
 
 function downloadCsv() {
   const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
   if (saved.length === 0) {
-    alert("保存されているバックアップデータがありません。");
+    alert("保存されている回答データがありません。");
     return;
   }
-  const rows = [["送信日時", "開始日時", "名前", "正解数", "総問題数", "正答率", "難易度", "回答詳細"]];
-  saved.forEach(r => rows.push([
-    r.submittedAt,
-    r.startedAt,
-    r.name,
-    r.score,
-    r.total,
-    r.percent + "%",
-    r.difficulty,
-    JSON.stringify(r.answers || [])
-  ]));
+  const rows = [["送信日時", "開始日時", "名前", "正解数", "総問題数", "正答率", "難易度"]];
+  saved.forEach(r => rows.push([r.submittedAt, r.startedAt, r.name, r.score, r.total, r.percent + "%", r.difficulty]));
   const csv = rows.map(row => row.map(v => `"${String(v ?? "").replaceAll('"', '""')}"`).join(",")).join("\n");
   const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = "自家製剤加算クイズ_端末内バックアップ.csv";
+  a.download = "自家製剤加算クイズ_回収データ.csv";
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -249,8 +230,8 @@ function downloadCsv() {
 }
 
 function clearSavedData() {
-  if (confirm("この端末に保存されたバックアップデータを削除しますか？")) {
+  if (confirm("この端末に保存された回答データを削除しますか？")) {
     localStorage.removeItem(STORAGE_KEY);
-    alert("バックアップデータを削除しました。");
+    alert("保存データを削除しました。");
   }
 }
